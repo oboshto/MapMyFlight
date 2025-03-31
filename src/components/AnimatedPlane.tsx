@@ -158,9 +158,18 @@ const AnimatedPlane: React.FC<AnimatedPlaneProps> = ({
     }
     lastPositionRef.current = currentPosition; // Update last position for next frame
 
-    // Calculate rotation/bearing for the current segment
-    const bearing = calculateBearing(segmentStartLatLng, segmentEndLatLng);
-    // Create a new icon with rotation and set it (Leaflet requires setting the whole icon)
+    // Calculate bearing based on current position and target position
+    // This ensures the plane is always pointing to where it's going next
+    const nextPosition =
+      progress < 1
+        ? interpolateLatLng(
+            segmentStartLatLng,
+            segmentEndLatLng,
+            Math.min(progress + 0.05, 1)
+          )
+        : segmentEndLatLng;
+
+    const bearing = calculateBearing(currentPosition, nextPosition);
     planeMarkerRef.current.setIcon(createRotatedIcon(bearing));
 
     // Check if segment is completed

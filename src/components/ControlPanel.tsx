@@ -37,6 +37,7 @@ interface ControlPanelProps {
   onStartAnimation: () => void; // Add prop for starting animation
   onStopAnimation: () => void; // Add stop handler prop
   onStartRecording: () => void; // Add recording handler prop
+  onStartFullscreenView: () => void; // Add fullscreen view handler prop
   isAnimating: boolean; // Add prop to know animation status
   isRecording: boolean; // Add recording status prop
   totalDistance: number; // Add total distance prop
@@ -51,6 +52,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   onStartAnimation, // Receive the function
   onStopAnimation, // Receive stop handler
   onStartRecording, // Receive handler
+  onStartFullscreenView, // Receive fullscreen handler
   isAnimating, // Receive the status
   isRecording, // Receive status
   totalDistance, // Receive distances
@@ -141,6 +143,19 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
       onStartAnimation();
     }
   };
+
+  // Detect if the user is on a mobile device
+  const isMobile = () => {
+    return (
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+        navigator.userAgent
+      ) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
+  };
+
+  // Check if user is on mobile
+  const isOnMobile = isMobile();
 
   return (
     // Main flex container for the panel
@@ -261,29 +276,42 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
         </div>
 
-        {/* Action Buttons Container */}
-        <div className="space-y-2 pt-2 border-t dark:border-gray-700">
-          {/* Start/Stop Animation Button */}
+        {/* Action Buttons */}
+        <div className="flex flex-col space-y-2">
+          {/* View Path Button - Main action */}
           <button
-            onClick={handleToggleAnimation}
+            onClick={isOnMobile ? onStartFullscreenView : handleToggleAnimation}
             disabled={(locations.length < 2 && !isAnimating) || isRecording}
-            className={`w-full p-3 text-white rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed ${
-              isAnimating ? "bg-red-500" : "bg-green-500"
-            }`}
+            className="w-full py-3 px-4 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center"
           >
-            {isAnimating ? "Stop Animation" : "View Path"}
+            {isOnMobile
+              ? "Fullscreen View"
+              : isAnimating
+              ? "Stop Animation"
+              : "View Path"}
           </button>
+
+          {/* Only show the animation control button for desktop if we're using fullscreen view on mobile */}
+          {isOnMobile && !isRecording && (
+            <button
+              onClick={handleToggleAnimation}
+              disabled={(locations.length < 2 && !isAnimating) || isRecording}
+              className="w-full py-3 px-4 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-white font-medium hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isAnimating ? "Stop Animation" : "Animate in Panel"}
+            </button>
+          )}
 
           {/* Record Video Button */}
           <button
             onClick={onStartRecording}
             disabled={isAnimating || isRecording || locations.length < 2}
-            className="w-full p-3 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3 px-4 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isRecording ? "Recording..." : "Record Video"}
           </button>
 
-          {/* Download Link */}
+          {/* Download Video Button (Shown only when recording is available) */}
           {recordedVideoUrl && (
             <div className="text-center">
               <a

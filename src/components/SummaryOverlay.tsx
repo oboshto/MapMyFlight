@@ -4,6 +4,8 @@ import type { Location } from "../App";
 interface SummaryOverlayProps {
   locations: Location[];
   totalDistance: number;
+  onInteraction?: () => void;
+  isFullscreenMode?: boolean;
 }
 
 // Utility function to format distance (same as in ControlPanel)
@@ -16,13 +18,32 @@ const formatDistance = (distanceKm: number): string => {
 const SummaryOverlay: React.FC<SummaryOverlayProps> = ({
   locations,
   totalDistance,
+  onInteraction,
+  isFullscreenMode = false,
 }) => {
   const locationCount = locations.length;
   const formattedDistance = formatDistance(totalDistance);
 
+  const handleClick = () => {
+    if (onInteraction && isFullscreenMode) {
+      onInteraction();
+    }
+  };
+
   return (
-    <div className="absolute inset-0 z-[1100] flex items-center justify-center bg-black bg-opacity-60 pointer-events-none">
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl text-center">
+    <div
+      className={`absolute inset-0 z-[1100] flex items-center justify-center bg-black bg-opacity-60 ${
+        isFullscreenMode
+          ? "pointer-events-auto cursor-pointer"
+          : "pointer-events-none"
+      }`}
+      onClick={handleClick}
+    >
+      <div
+        className={`bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl text-center ${
+          isFullscreenMode ? "pointer-events-auto" : ""
+        }`}
+      >
         <h2 className="text-2xl font-bold mb-3 text-gray-900 dark:text-gray-100">
           Trip Summary
         </h2>
@@ -34,6 +55,12 @@ const SummaryOverlay: React.FC<SummaryOverlayProps> = ({
           Total distance:{" "}
           <span className="font-semibold">{formattedDistance}</span>.
         </p>
+
+        {isFullscreenMode && (
+          <p className="mt-4 text-sm text-blue-600 dark:text-blue-400">
+            Tap anywhere to exit fullscreen view
+          </p>
+        )}
       </div>
     </div>
   );

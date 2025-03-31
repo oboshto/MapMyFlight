@@ -117,6 +117,7 @@ function App() {
       const bounds = L.latLngBounds(locations.map((loc) => [loc.lat, loc.lng]));
       mapRef.current.fitBounds(bounds, { animate: true, padding: [50, 50] });
     }
+
     // If recording, show summary and schedule stop
     if (mediaRecorderRef.current?.state === "recording" || isRecording) {
       setShowSummaryOverlay(true);
@@ -125,10 +126,20 @@ function App() {
         console.log("Stopping recording after summary display.");
         stopRecordingHandler();
       }, 2000);
+    } else if (hideUI) {
+      // If in fullscreen mode (hideUI true but not recording), show summary
+      setShowSummaryOverlay(true);
+      console.log(
+        "Animation ended in fullscreen mode, showing summary overlay..."
+      );
+
+      // In fullscreen mode, keep showing summary but don't exit automatically
+      // User will exit using the floating button
     } else {
+      // Normal panel animation ending
       setIsAnimating(false);
     }
-  }, [locations, isRecording, stopRecordingHandler]);
+  }, [locations, isRecording, stopRecordingHandler, hideUI]);
 
   // Function to update traveled distance during animation
   // This will be passed down to AnimatedPlane
@@ -149,6 +160,17 @@ function App() {
     if (locations.length < 2 || !mapRef.current) {
       alert("Please add at least two locations before recording.");
       return;
+    }
+
+    // Check if running on iOS
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+    if (isIOS) {
+      alert(
+        "Recording is not fully supported on iOS devices. This is a limitation of iOS WebKit. Consider using a desktop browser for better experience."
+      );
     }
 
     try {
@@ -198,6 +220,12 @@ function App() {
       // 4. Setup and Start MediaRecorder
       setRecordedVideoUrl(null);
       recordedChunksRef.current = [];
+
+      // Check if MediaRecorder is supported
+      if (!window.MediaRecorder) {
+        throw new Error("MediaRecorder API is not supported in this browser");
+      }
+
       mediaRecorderRef.current = new MediaRecorder(mediaStreamRef.current, {
         mimeType: "video/webm;codecs=vp9",
       });
@@ -242,7 +270,115 @@ function App() {
       }
       setIsRecording(false);
       setHideUI(false);
-      alert("Could not start recording. Please ensure you grant permission.");
+
+      // Provide better error message based on the error
+      if (isIOS) {
+        alert(
+          "Recording on iOS is limited. Please use Safari and ensure you've granted screen recording permissions in iOS system settings."
+        );
+      } else if (
+        err instanceof DOMException &&
+        err.name === "NotAllowedError"
+      ) {
+        alert(
+          "Permission to record was denied. Please allow screen recording permission when prompted."
+        );
+      } else if (
+        err instanceof DOMException &&
+        err.name === "NotSupportedError"
+      ) {
+        alert(
+          "Recording is not supported in this browser. Please try using Chrome, Edge, or Safari."
+        );
+      } else {
+        alert(
+          "Could not start recording. Please ensure you grant permission and are using a supported browser."
+        );
+      }
+    }
+  };
+
+  // Exit fullscreen mode handler
+  const exitFullscreenMode = useCallback(() => {
+    // Restore UI
+    setHideUI(false);
+    setIsAnimating(false);
+    setShowSummaryOverlay(false);
+
+    // Restore zoom control
+    if (mapRef.current && !mapRef.current.zoomControl) {
+      mapRef.current.addControl(L.control.zoom({ position: "topleft" }));
+      console.log("Zoom control restored after fullscreen exit");
+    }
+
+    // Find and remove the exit fullscreen button if it exists
+    const exitButton = document.querySelector("button.exit-fullscreen-btn");
+    if (exitButton && exitButton.parentElement) {
+      exitButton.parentElement.removeChild(exitButton);
+    }
+  }, []);
+
+  const startFullscreenViewHandler = async () => {
+    // Ensure there are enough locations and we have mapRef
+    if (locations.length < 2 || !mapRef.current) {
+      alert("Please add at least two locations before viewing path.");
+      return;
+    }
+
+    try {
+      // --- Hide Zoom Control ---
+      if (mapRef.current?.zoomControl) {
+        mapRef.current.zoomControl.remove();
+        console.log("Zoom control removed for fullscreen view");
+      }
+      // --- End Hide Zoom Control ---
+
+      // --- Resize preparation ---
+      console.log("Hiding UI for fullscreen view...");
+      setHideUI(true);
+      // Brief pause to allow UI to hide and map to potentially resize
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      // --- End resize preparation ---
+
+      // Fit bounds to the first segment
+      console.log("Fitting bounds to first segment...");
+      if (!mapRef.current) throw new Error("Map ref is not available");
+      const startLatLng = L.latLng(locations[0].lat, locations[0].lng);
+      const nextLatLng = L.latLng(locations[1].lat, locations[1].lng);
+      const initialBounds = L.latLngBounds([startLatLng, nextLatLng]);
+      mapRef.current.fitBounds(initialBounds, {
+        animate: true,
+        padding: [60, 60],
+      });
+
+      // Brief pause to allow map animations
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Start animation
+      startAnimation();
+
+      // Add a floating button to exit fullscreen mode
+      const exitFullscreenButton = document.createElement("button");
+      exitFullscreenButton.innerHTML =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>';
+      exitFullscreenButton.className =
+        "absolute top-4 right-4 z-[1000] bg-white text-black rounded-full p-3 shadow-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 exit-fullscreen-btn";
+      exitFullscreenButton.style.position = "absolute";
+      exitFullscreenButton.style.top = "10px";
+      exitFullscreenButton.style.right = "10px";
+      exitFullscreenButton.onclick = exitFullscreenMode;
+
+      document.body.appendChild(exitFullscreenButton);
+    } catch (err) {
+      console.error("Error starting fullscreen view:", err);
+
+      // Restore UI in case of an error
+      setHideUI(false);
+
+      // Restore zoom control on error
+      if (mapRef.current && !mapRef.current.zoomControl) {
+        mapRef.current.addControl(L.control.zoom({ position: "topleft" }));
+      }
     }
   };
 
@@ -294,7 +430,12 @@ function App() {
         )}
         {/* Summary Overlay - Conditionally rendered */}
         {showSummaryOverlay && (
-          <SummaryOverlay locations={locations} totalDistance={totalDistance} />
+          <SummaryOverlay
+            locations={locations}
+            totalDistance={totalDistance}
+            onInteraction={exitFullscreenMode}
+            isFullscreenMode={hideUI}
+          />
         )}
       </div>
 
@@ -308,6 +449,7 @@ function App() {
             onStartAnimation={startAnimation}
             onStopAnimation={stopAnimation}
             onStartRecording={startRecordingHandler} // Pass recording start function
+            onStartFullscreenView={startFullscreenViewHandler} // Pass fullscreen view function
             isAnimating={isAnimating}
             isRecording={isRecording} // Pass recording status
             totalDistance={totalDistance}
