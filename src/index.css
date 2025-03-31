@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans;
+}
+
+/* Optional: Style for the custom city marker */
+.city-marker-icon {
+  /* Add any specific non-Tailwind styles if needed */
+}
+
+/* Optional: Style for the plane tooltip */
+.plane-tooltip {
+  @apply bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-none rounded shadow px-2 py-1 text-xs font-medium;
+  /* Override default Leaflet tooltip styles */
+}
